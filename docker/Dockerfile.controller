@@ -1,0 +1,30 @@
+FROM python:3.12-slim AS build
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip wheel --no-cache-dir --wheel-dir /wheels ".[kubernetes]"
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.title="AXIOM OS Controller" \
+      org.opencontainers.image.description="Kubernetes reconciliation adapter for AXIOM jobs" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    AXIOM_HOME=/var/lib/axiom
+
+RUN addgroup --system axiom && adduser --system --ingroup axiom axiom && \
+    mkdir -p /var/lib/axiom && chown -R axiom:axiom /var/lib/axiom
+COPY --from=build /wheels /wheels
+RUN python -m pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
+
+USER axiom
+WORKDIR /app
+ENTRYPOINT ["python", "-m", "axiom_controller"]

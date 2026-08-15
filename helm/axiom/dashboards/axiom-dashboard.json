@@ -1,0 +1,47 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "title": "Execution rate",
+      "type": "timeseries",
+      "targets": [{"expr": "rate(axiom_agent_executions_total[5m])", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "title": "Latency distribution",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "histogram_quantile(0.50, rate(axiom_agent_latency_seconds_bucket[5m]))", "legendFormat": "p50", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, rate(axiom_agent_latency_seconds_bucket[5m]))", "legendFormat": "p95", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, rate(axiom_agent_latency_seconds_bucket[5m]))", "legendFormat": "p99", "refId": "C"}
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "title": "Execution location split",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum(rate(axiom_agent_location_total{location=\"local\"}[5m])) / sum(rate(axiom_agent_executions_total[5m]))", "legendFormat": "local", "refId": "A"},
+        {"expr": "sum(rate(axiom_agent_location_total{location=\"remote\"}[5m])) / sum(rate(axiom_agent_executions_total[5m]))", "legendFormat": "remote", "refId": "B"}
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "title": "Cost attribution: 24 hours",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "increase(axiom_local_exec_cost_usd[24h])", "legendFormat": "local", "refId": "A"},
+        {"expr": "increase(axiom_remote_exec_cost_usd[24h])", "legendFormat": "remote", "refId": "B"}
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["axiom", "agents", "hybrid"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "AXIOM OS — Agent Execution Dashboard",
+  "uid": "axiom-os",
+  "version": 1
+}

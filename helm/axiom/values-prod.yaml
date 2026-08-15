@@ -1,0 +1,39 @@
+# Copy this file and provide organization-specific image references and secrets.
+controller:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/your-org/axiom-controller
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+agent:
+  image:
+    repository: ghcr.io/your-org/axiom-agent
+    tag: "0.1.0"
+  remoteNodeSelector:
+    workload: axiom-ai
+  modelCache:
+    enabled: true
+    persistentVolumeClaim: axiom-model-cache
+
+remote:
+  endpoint: https://axiom-gateway.example.invalid
+  mtls:
+    enabled: true
+    caSecretName: axiom-remote-ca
+    clientCertificateSecretName: axiom-client-tls
+
+observability:
+  otlpEndpoint: http://otel-collector.monitoring.svc:4317
+  serviceName: axiom-controller
+  auditRetentionDays: 30
+
+podAnnotations:
+  sidecar.istio.io/inject: "true"

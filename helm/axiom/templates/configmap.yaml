@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axiom.fullname" . }}-routing
+  labels:
+    app.kubernetes.io/name: {{ include "axiom.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  AxiomConfig.json: |
+    {
+      "mode": "remote",
+      "routing_policy": {
+        "local_max_depth": {{ .Values.routing.localMaxDepth }},
+        "local_frame_budget_ms": {{ .Values.routing.localFrameBudgetMs }},
+        "remote_submit_budget_ms": {{ .Values.routing.remoteSubmitBudgetMs }},
+        "remote_circuit_failure_threshold": {{ .Values.routing.remoteCircuitFailureThreshold }},
+        "remote_circuit_reset_seconds": {{ .Values.routing.remoteCircuitResetSeconds }}
+      },
+      "remote_endpoint": {{ .Values.remote.endpoint | quote }}
+    }

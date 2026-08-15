@@ -1,0 +1,75 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+controller:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/obsidian-meridian/axiom-controller
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+
+agent:
+  image:
+    repository: ghcr.io/obsidian-meridian/axiom-agent
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  serviceAccountName: axiom-agent
+  remoteNodeSelector:
+    workload: axiom-ai
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  modelCache:
+    enabled: false
+    persistentVolumeClaim: ""
+
+routing:
+  localMaxDepth: 3
+  localFrameBudgetMs: 50
+  remoteSubmitBudgetMs: 200
+  remoteCircuitFailureThreshold: 3
+  remoteCircuitResetSeconds: 30
+
+remote:
+  endpoint: ""
+  mtls:
+    enabled: true
+    caSecretName: ""
+    clientCertificateSecretName: ""
+
+observability:
+  otlpEndpoint: ""
+  serviceName: axiom-controller
+  auditRetentionDays: 30
+  prometheusRule:
+    enabled: true
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

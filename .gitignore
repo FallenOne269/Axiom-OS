@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# AXIOM local state and sensitive configuration
+.axiom/
+AxiomConfig.json
+*.pem
+*.key
+*.crt
+.env
+.env.*
+
+# Local model caches and container volumes
+models/
+.ollama/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/crash.log
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store

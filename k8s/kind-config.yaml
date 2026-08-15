@@ -1,0 +1,28 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: axiom-dev
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.30.0
+    extraMounts:
+      - hostPath: /var/lib/axiom-cache
+        containerPath: /mnt/axiom-cache
+        readOnly: false
+  - role: worker
+    image: kindest/node:v1.30.0
+    kubeadmConfigPatches:
+      - |
+        kind: KubeletConfiguration
+        systemReserved:
+          cpu: 100m
+          memory: 128Mi
+        kubeReserved:
+          cpu: 50m
+          memory: 64Mi
+    extraMounts:
+      - hostPath: /var/lib/axiom-cache
+        containerPath: /mnt/axiom-cache
+        readOnly: false
+networking:
+  podSubnet: 10.244.0.0/16
+  serviceSubnet: 10.96.0.0/12

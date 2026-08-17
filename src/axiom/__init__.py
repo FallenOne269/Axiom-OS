@@ -1,5 +1,6 @@
 """AXIOM OS hybrid-agent reference control plane."""
 
+from .constitutional import Authority, AxiomKernel, ConstitutionalContext, InvariantViolation
 from .cost import CostCalculator, CostLedger, CostRates
 from .models import (
     AxiomConfig,
@@ -22,12 +23,15 @@ from .router import CircuitBreaker, ExecutionRouter
 __version__ = "0.1.0"
 
 __all__ = [
+    "Authority",
     "AxiomConfig",
+    "AxiomKernel",
     "AxiomOrchestrator",
     "AxiomResult",
     "AxiomTask",
     "CircuitBreaker",
     "ComputeSpec",
+    "ConstitutionalContext",
     "CostCalculator",
     "CostLedger",
     "CostRates",
@@ -35,6 +39,7 @@ __all__ = [
     "ExecutionEnv",
     "ExecutionLocation",
     "ExecutionRouter",
+    "InvariantViolation",
     "LocalCapabilities",
     "LocalTaskStore",
     "ReplayManifest",

@@ -6,6 +6,7 @@ from json import dumps, loads
 from pathlib import Path
 from time import perf_counter
 
+from .constitutional import Authority, AxiomKernel, ConstitutionalContext, InvariantViolation
 from .cost import CostCalculator, CostLedger
 from .executor import TaskExecutor
 from .models import (
@@ -77,7 +78,7 @@ class LocalTaskStore:
 
 
 class AxiomOrchestrator:
-    """Coordinate execution while enforcing all reference control-plane invariants."""
+    """Coordinate execution while enforcing the AXIOM constitutional boundary."""
 
     def __init__(
         self,
@@ -88,6 +89,7 @@ class AxiomOrchestrator:
         cost_calculator: CostCalculator,
         task_store: LocalTaskStore | None = None,
         cost_ledger: CostLedger | None = None,
+        kernel: AxiomKernel | None = None,
     ) -> None:
         if local_executor.location != ExecutionLocation.LOCAL:
             raise ValueError("local executor must declare local execution location")
@@ -100,9 +102,47 @@ class AxiomOrchestrator:
         self.cost_calculator = cost_calculator
         self.task_store = task_store
         self.cost_ledger = cost_ledger or CostLedger()
+        self.kernel = kernel or AxiomKernel()
+
+    def _constitutional_context(self, task: AxiomTask) -> ConstitutionalContext:
+        """Build the immutable lineage context for a task admission decision."""
+        return ConstitutionalContext(
+            trace_id=task.trace_id,
+            task_id=task.id,
+            actor_id="axiom.orchestrator",
+            authority=Authority.EXECUTE,
+            parent_state_hash=task.digest(),
+            policy_version=self.kernel.version,
+            mutation_id=f"submit:{task.id}",
+            evidence={"task_digest": task.digest()},
+        )
 
     async def submit(self, task: AxiomTask) -> AxiomResult:
-        """Persist a task and execute it through the selected tier."""
+        """Persist a task and execute it only after constitutional admission."""
+        try:
+            constitutional = self._constitutional_context(task)
+            self.kernel.validate(constitutional)
+            self.kernel.assert_budget(
+                depth=task.depth,
+                max_depth=self.router.policy.local_max_depth,
+                tokens=task.tokens_remaining,
+                max_tokens=128_000,
+            )
+        except InvariantViolation as error:
+            result = AxiomResult(
+                task_id=task.id,
+                trace_id=task.trace_id,
+                status=TaskStatus.REJECTED,
+                error=f"constitutional rejection: {error}",
+            )
+            if self.task_store:
+                self.task_store.save_task(task)
+            root_event = emit_task_event(
+                self.tracer, task, "task.rejected.constitution", error=str(error)
+            )
+            self._finish(task, result, parent_span_id=root_event.span_id)
+            return result
+
         if self.task_store:
             self.task_store.save_task(task)
         root_event = emit_task_event(self.tracer, task, "task.submit", objective=task.objective)
@@ -117,6 +157,7 @@ class AxiomOrchestrator:
             degraded=decision.degraded,
             rejected=decision.rejected,
             detail=decision.detail,
+            constitutional_kernel=self.kernel.version,
         )
         if decision.rejected or decision.location is None:
             result = AxiomResult(
@@ -187,6 +228,7 @@ class AxiomOrchestrator:
             cost_usd=result.cost.total_usd,
             result_digest=result.result_digest,
             error=result.error,
+            constitutional_kernel=self.kernel.version,
         )
         self.cost_ledger.record(result)
         if self.task_store:

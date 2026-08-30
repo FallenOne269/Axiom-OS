@@ -3,7 +3,7 @@ import pytest
 from axiom.cost import CostCalculator, CostRates
 from axiom.executor import DeterministicExecutor, RemoteSubmissionExecutor
 from axiom.hybrid_client import AxiomClient, HmacEnvelopeSigner, InProcessRemoteTransport
-from axiom.models import AxiomTask, ExecutionLocation, LocalCapabilities
+from axiom.models import AxiomTask, ExecutionEnv, ExecutionLocation, LocalCapabilities, RouteReason
 from axiom.orchestrator import AxiomOrchestrator, LocalTaskStore
 from axiom.router import ExecutionRouter
 from axiom.tracer import InMemoryTracer
@@ -35,6 +35,27 @@ async def test_depth_spillover_uses_signed_remote_transport_and_remote_cost(tmp_
     assert "remote: simulated execution" in (result.output or "")
     assert result.cost.remote_compute_usd > 0
     assert runtime.router.circuit_breaker.failures == 0
+
+
+def test_explicit_remote_does_not_degrade_to_local_when_remote_is_unavailable() -> None:
+    router = ExecutionRouter(
+        LocalCapabilities(available_models={"llama2-7b"}),
+        remote_healthy=False,
+    )
+    task = AxiomTask(
+        objective="Remote-only task",
+        executionEnv=ExecutionEnv.REMOTE,
+        allowDegradedLocal=True,
+        requiredCompute={"model": "llama2-7b"},
+    )
+
+    decision = router.decide(task)
+
+    assert decision.location is None
+    assert decision.rejected is True
+    assert decision.degraded is False
+    assert decision.reason == RouteReason.REMOTE_UNAVAILABLE_REJECTED
+    assert "explicit remote request" in decision.detail
 
 
 @pytest.mark.asyncio

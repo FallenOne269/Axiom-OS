@@ -18,11 +18,7 @@ from .models import (
 
 @dataclass
 class CircuitBreaker:
-    """Minimal, deterministic circuit breaker for remote task submission.
-
-    The breaker is intentionally process-local. Production replicas should replace
-    this state with a shared health signal while retaining the same route contract.
-    """
+    """Minimal, deterministic circuit breaker for remote task submission."""
 
     failure_threshold: int
     reset_seconds: float
@@ -157,6 +153,18 @@ class ExecutionRouter:
                 "remote execution selected after local policy evaluation"
                 if not explicit
                 else "remote execution requested",
+            )
+
+        # Explicit placement is authoritative. Never silently convert an
+        # explicit remote request into local execution because degradation is
+        # enabled; doing so would violate the task's placement contract.
+        if explicit:
+            return self._decision(
+                task,
+                None,
+                RouteReason.REMOTE_UNAVAILABLE_REJECTED,
+                "explicit remote request cannot be honored: remote tier unavailable",
+                rejected=True,
             )
 
         local_constraint = self._local_constraint(task)

@@ -48,6 +48,7 @@ def test_explicit_remote_does_not_degrade_to_local_when_remote_is_unavailable() 
         objective="Remote-only task",
         executionEnv=ExecutionEnv.REMOTE,
         allowDegradedLocal=True,
+        tokensRemaining=8_000,
         requiredCompute={"model": "llama2-7b"},
     )
 

@@ -11,6 +11,7 @@ from axiom.tracer import InMemoryTracer
 
 @pytest.mark.asyncio
 async def test_depth_spillover_uses_signed_remote_transport_and_remote_cost(tmp_path) -> None:
+    """Verify depth spillover uses signed remote transport and incurs remote cost."""
     signer = HmacEnvelopeSigner(b"test-signing-secret-at-least-sixteen-bytes")
     remote_client = AxiomClient(signer, InProcessRemoteTransport(signer, delay_ms=1))
     runtime = AxiomOrchestrator(
@@ -38,6 +39,7 @@ async def test_depth_spillover_uses_signed_remote_transport_and_remote_cost(tmp_
 
 
 def test_explicit_remote_does_not_degrade_to_local_when_remote_is_unavailable() -> None:
+    """Verify unavailable explicit remote placement is rejected despite local eligibility."""
     router = ExecutionRouter(
         LocalCapabilities(available_models={"llama2-7b"}),
         remote_healthy=False,
@@ -60,6 +62,7 @@ def test_explicit_remote_does_not_degrade_to_local_when_remote_is_unavailable() 
 
 @pytest.mark.asyncio
 async def test_remote_transport_rejects_modified_signed_task() -> None:
+    """Verify remote transport rejects a task modified after its envelope was signed."""
     signer = HmacEnvelopeSigner(b"test-signing-secret-at-least-sixteen-bytes")
     transport = InProcessRemoteTransport(signer)
     original = AxiomTask(objective="Original task", requiredCompute={"model": "llama2-7b"})

@@ -145,6 +145,11 @@ class ExecutionRouter:
     def _remote_or_degraded(
         self, task: AxiomTask, reason: RouteReason, *, explicit: bool = False
     ) -> RouteDecision:
+        """Route remotely when available, rejecting unavailable explicit requests.
+
+        Implicit requests may fall back to eligible local execution only when
+        the task permits degraded local execution; otherwise, reject them.
+        """
         if self.remote_available:
             return self._decision(
                 task,

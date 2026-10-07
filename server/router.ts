@@ -110,6 +110,10 @@ export class ExecutionRouter {
     this.circuit_breaker.recordSuccess();
   }
 
+  /**
+   * Determine where a task should execute, honoring explicit placement
+   * requests before falling back to policy-driven local/remote routing.
+   */
   decide(task: AxiomTask): RouteDecision {
     if (task.execution_env === 'local') {
       return this.localOrDegraded(task, 'explicit_local', true);
@@ -130,6 +134,11 @@ export class ExecutionRouter {
     return this.remoteOrDegraded(task, localFailure);
   }
 
+  /**
+   * Evaluate whether local capabilities and policy allow executing the task,
+   * returning the first violated constraint reason or `null` if the task is
+   * eligible for local execution.
+   */
   checkLocalConstraint(task: AxiomTask): RouteReason | null {
     const caps = this.capabilities;
     if (!caps.local_healthy) {
@@ -183,6 +192,12 @@ export class ExecutionRouter {
     return this.remoteOrDegraded(task, constraint);
   }
 
+  /**
+   * Route remotely when available, rejecting unavailable explicit requests.
+   *
+   * Implicit requests may fall back to eligible local execution only when
+   * the task permits degraded local execution; otherwise, reject them.
+   */
   private remoteOrDegraded(
     task: AxiomTask,
     reason: RouteReason,

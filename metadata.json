@@ -1,0 +1,6 @@
+{
+  "name": "AXIOM OS",
+  "description": "Hybrid local-to-remote agent orchestration control plane and dashboard for routing, tracing, constitutional verification, and cost attribution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

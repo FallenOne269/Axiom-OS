@@ -199,6 +199,18 @@ export class ExecutionRouter {
       );
     }
 
+    // Explicit placement is authoritative, even when local degradation is allowed.
+    if (explicit) {
+      return this.makeDecision(
+        task,
+        null,
+        'remote_unavailable_rejected',
+        'explicit remote request cannot be honored: remote tier unavailable',
+        false,
+        true
+      );
+    }
+
     const localConstraint = this.checkLocalConstraint(task);
     if (task.allow_degraded_local && localConstraint === null) {
       return this.makeDecision(

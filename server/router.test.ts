@@ -3,6 +3,9 @@ import { test } from 'node:test';
 import { ExecutionRouter } from './router.js';
 import type { AxiomTask } from './types.js';
 
+/**
+ * Verify unavailable explicit remote placement is rejected despite local eligibility.
+ */
 test('explicit remote placement rejects unavailable remote despite local eligibility', () => {
   const router = new ExecutionRouter(
     { available_models: ['llama2-7b'] },

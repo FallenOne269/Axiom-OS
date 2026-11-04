@@ -1,43 +1,64 @@
 # AXIOM OS
 
-**AXIOM OS** is a hybrid agent-execution control plane for routing bounded agent tasks between a local development tier and a remote Kubernetes tier. It treats the persistent `trace_id` as the system spine, enabling unified audit records, replayable envelopes, deterministic routing decisions, and local-versus-remote cost attribution.
+**AXIOM OS** is a TypeScript reference implementation of a hybrid agent-execution control plane. It runs as one Node.js server (Express) with a React dashboard, and simulates routing bounded agent tasks between a local tier and a remote tier. Every task carries a persistent `trace_id` that ties together its routing decision, trace spans, replay envelope and cost attribution.
 
-> This repository is a **runnable reference implementation** of the AXIOM OS control plane. It does not claim to be a complete custom Linux distribution, GPU platform, or managed cloud service.
+> This repository is a runnable simulation and dashboard. Remote execution is simulated: the server does not connect to a Kubernetes cluster, a model server or a cloud account. Tasks, traces and costs are kept in memory and are cleared when the server restarts.
 
-| Capability | Included in this repository | Deployment boundary |
-|---|---:|---|
-| Typed task contract and canonical serialization | Yes | Shared across CLI, controller, and worker |
-| Hybrid execution router | Yes | Works in local simulation and with live adapters |
-| Trace continuity and redacted audit events | Yes | JSONL locally; OTLP adapter can be supplied in production |
-| Local and remote cost attribution | Yes | Rates are explicit environment configuration |
-| Signed remote envelopes | Yes | Replace development key with workload identity and mTLS |
-| Kubernetes custom resource and Helm chart | Yes | Requires a cluster and reviewed image registry |
-| Local service topology | Yes | Requires Docker/Compose to run services |
-| Kernel, ISO, GPU, and cloud provisioning | Build plans/configuration only | Requires trusted toolchains and cloud credentials |
+| Capability | Included in this repository |
+|---|---|
+| Task submission API and dashboard form | Yes |
+| Deterministic local/remote router with a remote circuit breaker | Yes |
+| Trace viewer and task history | Yes |
+| Local versus remote cost breakdown (simulated, editable rates) | Yes |
+| Replay envelope export and digest verification | Yes |
+| Constitutional invariant checks when a task is admitted | Yes |
+| Python CLI, Helm chart, Docker Compose, Terraform | No |
+| Kernel, ISO and image manifests | Build-plan scripts only, in `scripts/` |
 
-## Quick Start: Zero-Infrastructure Simulation
+## Quick Start
 
-The simulation profile executes the same control-plane behavior without a model server or a Kubernetes cluster. It is the fastest way to validate task routing, trace persistence, replay export, and cost reports.
-
-```bash
-uv sync --extra dev
-export AXIOM_HOME="$PWD/.axiom"
-uv run axiom init --mode simulation
-uv run axiom submit \
-  --objective "Verify a local AXIOM task" \
-  --depth 1 \
-  --tokens 8000 \
-  --model llama2-7b
-```
-
-The submit response contains `task_id` and `trace_id`. Use them for audit, replay, and costs.
+Requirements: Node.js and npm. No environment variables or API keys are needed.
 
 ```bash
-uv run axiom trace show --trace-id tr_your_trace_id
-uv run axiom export --task-id task_your_task_id --format kubernetes > execution.yaml
-uv run axiom verify --task-id task_your_task_id
-uv run axiom cost breakdown --trace-id tr_your_trace_id
+npm install
+npm run dev
 ```
+
+Open http://localhost:3000. In development the Express server runs Vite as middleware, so dashboard changes reload live. The port is fixed at 3000 in `server.ts`.
+
+Submit a task from the dashboard, or with curl:
+
+```bash
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"objective":"Verify a local AXIOM task","depth":1,"tokens_remaining":8000,"required_compute":{"model":"llama2-7b"}}'
+```
+
+The response contains the task, with its `id` and `trace_id`, and the routing result. Use them with the trace, replay and cost endpoints below.
+
+## Production Build
+
+```bash
+npm run build
+NODE_ENV=production npm start
+```
+
+`npm run build` builds the dashboard into `dist/` and bundles the server into `dist/server.cjs`. With `NODE_ENV=production` the server serves the built dashboard instead of running Vite.
+
+## API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | Tier health, circuit state and router limits |
+| `POST /api/health/toggle-remote`, `/toggle-local`, `/reset-circuit` | Simulate tier outages and reset the circuit breaker |
+| `GET /api/config`, `PUT /api/config` | Read or change capabilities, routing policy and cost rates |
+| `POST /api/tasks`, `GET /api/tasks`, `GET /api/tasks/:id` | Submit and list tasks |
+| `GET /api/traces`, `GET /api/traces/:traceId` | Trace records |
+| `GET /api/cost/breakdown` | Local versus remote cost attribution |
+| `GET /api/replays/:id` | Replay envelope; add `?format=kubernetes` for an `AxiomJob` manifest |
+| `POST /api/replays/:id/verify` | Check the task and result digests |
+| `POST /api/simulate-load` | Run a synthetic batch (default 20 tasks, up to 100) |
+| `GET /api/constitutional/invariants` | List the admission invariants |
 
 ## Routing Policy
 
@@ -48,75 +69,30 @@ The router is deterministic. It honors an explicit `local` or `remote` placement
 | Local recursion depth | 3 | Keeps recursive work bounded in the latency-sensitive tier |
 | Local frame budget | 50 ms | Exposes the specification’s local responsiveness target |
 | Remote submit budget | 200 ms | Exposes the specification’s remote handoff target |
-| Maximum task context | 128,000 tokens | Enforced by the task schema |
+| Maximum task context | 128,000 tokens | Enforced when a task is admitted |
 | Remote circuit failure threshold | 3 | Prevents repeated failed remote submits from amplifying incidents |
-
-## Local Services
-
-The Compose profile declares ephemeral Redis, Jaeger, optional Ollama, and an AXIOM worker. It deliberately binds service ports to loopback addresses.
-
-```bash
-docker compose -f docker/docker-compose-local.yml --profile models up -d
-```
-
-Build and apply local Kubernetes prerequisites only on a machine with `kind`, `kubectl`, and `helm` installed:
-
-```bash
-./scripts/bootstrap-local.sh
-helm upgrade --install axiom ./helm/axiom -n axiom --create-namespace
-```
-
-## Remote Kubernetes Deployment
-
-The `helm/axiom` chart contains the `AxiomJob` schema, least-privilege namespaced RBAC, controller deployment, routing configuration, and Prometheus rules. Render before installation and provide real image references, trust material, model storage, and endpoint configuration through a reviewed production values file.
-
-```bash
-helm template axiom ./helm/axiom --namespace axiom
-helm upgrade --install axiom ./helm/axiom \
-  --namespace axiom --create-namespace \
-  --values helm/axiom/values-prod.yaml
-```
-
-The Terraform directory provides a **bring-your-own-network** EKS baseline. It requires private subnets in at least two availability zones and intentionally does not create an unreviewed Internet gateway, NAT topology, or permissive ingress.
-
-```bash
-cd terraform
-terraform init
-terraform plan \
-  -var='aws_region=us-east-1' \
-  -var='private_subnet_ids=["subnet-1","subnet-2"]'
-```
 
 ## Security and Privacy
 
-The reference implementation signs canonical task envelopes using HMAC so a transport adapter can reject task mutation. A production deployment must source the key from a managed workload identity and use mTLS with a pinned trust root. Trace and audit events hash task objectives and serialized state rather than storing raw content. Do not pass secrets through task objectives, environment variables, labels, annotations, or metric labels.
+Trace events replace sensitive fields (objective, prompt, serialized state, user ID, context preview) with SHA-256 hashes. Replay envelopes carry a SHA-256 task digest that the verify endpoint checks. The server has no authentication, no envelope signing and no mTLS, accepts cross-origin requests from any site, and listens on all network interfaces, so run it only on a trusted machine or network. Do not put secrets in task objectives or state.
 
 ## Project Layout
 
 | Path | Responsibility |
 |---|---|
-| `src/axiom/` | Typed contracts, routing, executor adapters, traces, costs, replay, and CLI |
-| `src/axiom_controller.py` | Optional Kubernetes-controller compatible resource adapter |
-| `src/axiom_agent.py` | Container-friendly worker entry point |
-| `docker/` | Local service topology and hardened container definitions |
-| `k8s/` | Kind profile and `AxiomJob` custom resource definition |
-| `helm/axiom/` | Remote-cluster chart, RBAC, configuration, rules, and dashboard |
-| `terraform/` | EKS baseline over reviewed existing private networking |
-| `scripts/` | Guarded build, bootstrap, and image-manifest commands |
-| `docs/` | Architecture, deployment, and operations guidance |
-| `tests/` | No-infrastructure unit and integration simulation suite |
+| `server.ts` | Express server, API routes, Vite middleware in development |
+| `server/` | Router, orchestrator, constitutional kernel, tracer, cost calculator and types |
+| `src/` | React dashboard (task form, routing policy, traces, history, costs, kernel view) |
+| `scripts/` | Build-plan and bootstrap scripts carried over from the earlier Python version; several expect folders or a Python package that are not in this repository |
+| `docs/` | Architecture and operations notes |
 
 ## Development
 
 ```bash
-make install
-make lint
-make test
-make build
-make image-manifest
+npm run lint                           # TypeScript type check
+npx tsx --test server/router.test.ts   # router tests
+npm run build
 ```
-
-See [architecture documentation](docs/architecture.md) for the control-plane boundaries and [deployment documentation](docs/deployment.md) for the production rollout sequence.
 
 ## License
 
